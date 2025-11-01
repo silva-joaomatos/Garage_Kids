@@ -4,10 +4,8 @@
 #include <NewPing.h>
 #include <SPI.h>
 #include <MFRC522.h>
-#define RST_PIN         5          // Configurable, see typical pin layout above
-#define SS_PIN          10         // Configurable, see typical pin layout above
-
-
+#define RST_PIN         5          // Configurable 
+#define SS_PIN          10         // Configurable
 #define TRIGGER_PIN  6  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     7  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
@@ -30,7 +28,6 @@ byte checkCard() {
   if ( ! mfrc522.PICC_IsNewCardPresent()) {
     return 0x00;
   }
-
   // Select one of the cards
   if ( ! mfrc522.PICC_ReadCardSerial()) {
     return 0x00;
@@ -62,10 +59,6 @@ void setup() {
 void loop() {
  
   byte uid = checkCard();
-	/*Serial.print(F("Card UID:"));
-  Serial.println(uid, HEX); */
-  Serial.println(cardpresent);
-
   if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
     pingTimer += pingSpeed;      // Set the next ping time.
     sonar.ping_timer(echoCheck); // Send out the ping, calls "echoCheck" function every 24uS where you can check the ping status.
@@ -89,7 +82,7 @@ void loop() {
     myservo.write(180); // Open the door
     doorOpenTime = millis(); // Reset the door open timer
   } else if (state == CLOSED) {
-    if (millis() - doorOpenTime >= 5000) { // Check if 5 seconds have passed since the door was opened
+    if (millis() - doorOpenTime >= 2000) { // Check if 2 seconds have passed since the door was opened
       myservo.write(0); // Close the door
     }
   }
