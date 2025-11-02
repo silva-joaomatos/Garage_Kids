@@ -4,6 +4,7 @@
 #include <NewPing.h>
 #include <SPI.h>
 #include <MFRC522.h>
+#include "LedController.hpp"
 #define RST_PIN         5          // Configurable 
 #define SS_PIN          10         // Configurable
 #define TRIGGER_PIN  6  // Arduino pin tied to trigger pin on the ultrasonic sensor.
@@ -12,6 +13,39 @@
 #define US_ROUNDTRIP_CM 57 // Constant for converting ping time to centimeters.
 #define OPEN 1
 #define CLOSED 0
+
+
+
+//These are the Pins used for the SPI transfer
+//See the usage instructions for their meaning
+#define DIN A0
+#define CS A1
+#define CLK A2
+
+//The total numer of Segments
+#define Segments 4
+
+//The delay between movements
+#define delayTime 200
+
+//This creates an uninitilized LedController object.
+//It will be initilized in the setup function.
+LedController<Segments,1> lc = LedController<Segments,1>();
+
+//This is my pixelart of a rocket which will be used in this example
+ByteBlock rocket= ByteBlock::reverse({
+  B00000000,
+  B00001111,
+  B00111110,
+  B11111101,
+  B00111110,
+  B00001111,
+  B00000000,
+  B00000000
+});
+ByteBlock rocketColumns;
+
+
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 unsigned int pingSpeed = 50; // How frequently are we going to send out a ping (in milliseconds). 50ms would be 20 times a second.
 unsigned long pingTimer;     // Holds the next ping time.
@@ -22,6 +56,7 @@ int pos = 0;    // variable to store the servo position
 int distance = 0; // variable to store the ping distance
 int state = 0;
 bool cardpresent = false;
+
 void echoCheck(); // Forward declaration of the echoCheck function.
 byte checkCard() {
   // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
@@ -54,10 +89,48 @@ void setup() {
   pingTimer = millis(); // Start now.
   //Serial.begin(115200); // Open serial monitor at 115200 baud to see ping results.
   //Serial.println("NewPing Ultrasonic Servo Sweep Example");
+  //initilizes the LedController without hardware spi.
+  lc.init(DIN,CLK,CS);
+
+  //make a array of columns out of the rocket
+  //this is needed to shift it in correctly (you can leave this line if you want to)
+  rocketColumns = ByteBlock::makeColumns(rocket);
+}
+void displayRocket(){
+  lc.clearMatrix();
+
+  for(int dir = 0; dir < 2; dir++) {
+    delay(delayTime);
+    for(int i = 0; i < 8*(Segments+1); i++) {
+      //blink led for each iteration
+
+      //if rocket not fully inside let it fly in
+      auto in = (i<8) ? rocketColumns[i] : 0x00;
+
+      //if dir is 0 move right if not move left
+      dir == 0 ? lc.moveRight(in) : lc.moveLeft(in);
+
+      delay(delayTime);
+
+      //decide whether to move up or down
+      if(i > 7) {
+        if(i % 6 < 3) {
+          lc.moveDown();
+        } else {
+          lc.moveUp();
+        }
+      }
+
+      delay(delayTime);
+
+    }
+  }
+
 }
 
 void loop() {
  
+  displayRocket(); //Display the rocket animation
   byte uid = checkCard();
   if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
     pingTimer += pingSpeed;      // Set the next ping time.
