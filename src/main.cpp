@@ -96,6 +96,50 @@ void setup() {
   //this is needed to shift it in correctly (you can leave this line if you want to)
   rocketColumns = ByteBlock::makeColumns(rocket);
 }
+//rewrites displayRocket() without delay() function. it should use millis() instead to allow other code to run and only iterate every xmilliseconds
+void displayRocket(){
+  // Non-blocking version of the rocket animation using millis()
+  static unsigned long lastMillis = 0;
+  static int dir = 0;                     // 0 = right, 1 = left
+  static int idx = 0;                     // column index (0 .. cols-1)
+  static int phase = 0;                   // 0 = horizontal move, 1 = vertical move, 2 = advance index
+  const int cols = 8 * (Segments + 1);
+  unsigned long now = millis();
+
+  if (now - lastMillis < (unsigned long)delayTime) return;
+  lastMillis = now;
+
+  // clear matrix at the start of each direction cycle
+  if (idx == 0 && phase == 0) {
+    lc.clearMatrix();
+  }
+
+  // perform one sub-step per call (matches original pattern of multiple delays per column)
+  if (phase == 0) {
+    // horizontal move: feed next column (or blank if rocket already fully inside)
+    auto in = (idx < 8) ? rocketColumns[idx] : 0x00;
+    if (dir == 0) lc.moveRight(in); else lc.moveLeft(in);
+    phase = 1;
+  }
+  else if (phase == 1) {
+    // vertical wiggle for columns after the first 8
+    if (idx > 7) {
+      if (idx % 6 < 3) lc.moveDown(); else lc.moveUp();
+    }
+    phase = 2;
+  }
+  else {
+    // advance to next column; handle end of cycle and toggle direction
+    idx++;
+    phase = 0;
+    if (idx >= cols) {
+      idx = 0;
+      dir = (dir + 1) % 2;
+      // leave matrix cleared for the next cycle (handled at top)
+    }
+  }
+}
+/* comment out original blocking version of displayRocket()
 void displayRocket(){
   lc.clearMatrix();
 
@@ -127,10 +171,9 @@ void displayRocket(){
   }
 
 }
-
+*/
 void loop() {
  
-  displayRocket(); //Display the rocket animation
   byte uid = checkCard();
   if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
     pingTimer += pingSpeed;      // Set the next ping time.
@@ -139,7 +182,11 @@ void loop() {
   if ((distance < 20) || uid == 0x5D){ //if distance less than 20cm or card uid is 0x5D open the door
    // myservo.write(180); //this only to test servo working
     state = OPEN;
+      displayRocket(); //Display the rocket animation
+
     Serial.println("Door Open");
+    Serial.print("Distance: ");
+    Serial.print(distance);
     cardpresent = false; //reset cardpresent after opening door
   }
   else if (distance >=20 ){
