@@ -27,7 +27,6 @@
 
 //The delay between movements
 #define delayTime 200
-
 //This creates an uninitilized LedController object.
 //It will be initilized in the setup function.
 LedController<Segments,1> lc = LedController<Segments,1>();
@@ -56,8 +55,16 @@ int pos = 0;    // variable to store the servo position
 int distance = 0; // variable to store the ping distance
 int state = 0;
 bool cardpresent = false;
-
+int face = -1; //-1=unknown, 0=closed, 1=open
 void echoCheck(); // Forward declaration of the echoCheck function.
+void printByte(byte character [])  
+{  
+  int i = 0;  
+  for(i=0;i<8;i++)  
+  {  
+    lc.setRow(0,7-i,character[i]);  	
+  }  
+}  
 byte checkCard() {
   // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
   if ( ! mfrc522.PICC_IsNewCardPresent()) {
@@ -81,8 +88,8 @@ void setup() {
 	SPI.begin();			// Init SPI bus
 	mfrc522.PCD_Init();		// Init MFRC522
 	delay(4);				// Optional delay. Some board do need more time after init to be ready, see Readme
-	mfrc522.PCD_DumpVersionToSerial();	// Show details of PCD - MFRC522 Card Reader details
-	Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
+//	mfrc522.PCD_DumpVersionToSerial();	// Show details of PCD - MFRC522 Card Reader details
+	//Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
 
   myservo.attach(9);  // attaches the servo on pin 9 to the Servo object
   myservo.write(0); //initially close the door
@@ -97,6 +104,15 @@ void setup() {
   rocketColumns = ByteBlock::makeColumns(rocket);
 }
 //rewrites displayRocket() without delay() function. it should use millis() instead to allow other code to run and only iterate every xmilliseconds
+// Run displayRocket as a 10ms task and ensure it's only shown while the door is open.
+// (loop() already only calls displayRocket() when the door is open)
+// Override the previous delayTime so the animation is driven every 10 ms.
+#undef delayTime
+#define delayTime 10
+byte openface[8]= {0x00, 0xc7, 0xc1, 0x11, 0x11, 0xc1, 0xc7, 0x00};//Data 
+byte closedface[8]= {0x00, 0xc3, 0xc2, 0x12, 0x12, 0xc2, 0xc3, 0x00};//Data
+
+
 void displayRocket(){
   // Non-blocking version of the rocket animation using millis()
   static unsigned long lastMillis = 0;
@@ -179,34 +195,38 @@ void loop() {
     pingTimer += pingSpeed;      // Set the next ping time.
     sonar.ping_timer(echoCheck); // Send out the ping, calls "echoCheck" function every 24uS where you can check the ping status.
   }
-  if ((distance < 20) || uid == 0x5D){ //if distance less than 20cm or card uid is 0x5D open the door
+  if ((distance < 20)  || uid == 0x5D){ //if distance less than 20cm or card uid is 0x5D open the door
    // myservo.write(180); //this only to test servo working
     state = OPEN;
-      displayRocket(); //Display the rocket animation
-
-    Serial.println("Door Open");
-    Serial.print("Distance: ");
-    Serial.print(distance);
-    cardpresent = false; //reset cardpresent after opening door
+    if (face != OPEN){
+          lc.clearMatrix(); //clear the matrix before showing open face
+          printByte(openface);
+          face=OPEN;
+    }
   }
   else if (distance >=20 ){
     ///myservo.write(0); //only test servo working
     state = CLOSED;
-  }
-
+    Serial.println("Door Closed");
+    } 
   // If state == OPEN, keep the door open for 5 seconds without delay function. if distance < 20cm keep open, only close 5seconds after distance is >=20cm
  // Use millis() to track time, not delay(). 
 //update below code so that door only closes 5 seconds after distance is >=20cm
   static unsigned long doorOpenTime = 0;
-  if (state == OPEN) {
+  if (state == OPEN) {  
     myservo.write(180); // Open the door
     doorOpenTime = millis(); // Reset the door open timer
   } else if (state == CLOSED) {
     if (millis() - doorOpenTime >= 2000) { // Check if 2 seconds have passed since the door was opened
       myservo.write(0); // Close the door
-    }
+      if (face != CLOSED){
+          lc.clearMatrix(); //clear the matrix before showing closed face
+          printByte(closedface);
+          face=CLOSED;
+      }
   }
  
+}
 }
 void echoCheck() { // Timer2 interrupt calls this function every 24uS where you can check the ping status.
   // Don't do anything here!
@@ -215,6 +235,8 @@ void echoCheck() { // Timer2 interrupt calls this function every 24uS where you 
    // Serial.print("Ping: ");
     //Serial.print(sonar.ping_result / US_ROUNDTRIP_CM); // Ping returned, uS result in ping_result, convert to cm with US_ROUNDTRIP_CM.
     distance = sonar.ping_result / US_ROUNDTRIP_CM;
+    Serial.print("Distance: ");
+    Serial.println(distance);
     /*Serial.print(distance);
     Serial.println("cm");*/
   }
