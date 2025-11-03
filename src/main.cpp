@@ -155,39 +155,6 @@ void displayRocket(){
     }
   }
 }
-/* comment out original blocking version of displayRocket()
-void displayRocket(){
-  lc.clearMatrix();
-
-  for(int dir = 0; dir < 2; dir++) {
-    delay(delayTime);
-    for(int i = 0; i < 8*(Segments+1); i++) {
-      //blink led for each iteration
-
-      //if rocket not fully inside let it fly in
-      auto in = (i<8) ? rocketColumns[i] : 0x00;
-
-      //if dir is 0 move right if not move left
-      dir == 0 ? lc.moveRight(in) : lc.moveLeft(in);
-
-      delay(delayTime);
-
-      //decide whether to move up or down
-      if(i > 7) {
-        if(i % 6 < 3) {
-          lc.moveDown();
-        } else {
-          lc.moveUp();
-        }
-      }
-
-      delay(delayTime);
-
-    }
-  }
-
-}
-*/
 void loop() {
  
   byte uid = checkCard();
@@ -225,19 +192,26 @@ void loop() {
           face=CLOSED;
       }
   }
- 
 }
+  // if the door is closed for more than 5 seconds display rocket animation
+  static unsigned long rocketTimer = 0;
+  if (state == CLOSED) {
+    if (rocketTimer == 0) {
+      rocketTimer = millis(); // start close timer
+    } else if (millis() - rocketTimer >= 5000) {
+      // door has been closed > 5s, run non-blocking rocket animation task
+      displayRocket();
+    }
+  } else { // state == OPEN
+    // reset timer when door opens
+    rocketTimer = 0;
+  }
 }
 void echoCheck() { // Timer2 interrupt calls this function every 24uS where you can check the ping status.
   // Don't do anything here!
   if (sonar.check_timer()) { // This is how you check to see if the ping was received.
-    // Here's where you can add code.
-   // Serial.print("Ping: ");
-    //Serial.print(sonar.ping_result / US_ROUNDTRIP_CM); // Ping returned, uS result in ping_result, convert to cm with US_ROUNDTRIP_CM.
     distance = sonar.ping_result / US_ROUNDTRIP_CM;
     Serial.print("Distance: ");
     Serial.println(distance);
-    /*Serial.print(distance);
-    Serial.println("cm");*/
   }
 }
