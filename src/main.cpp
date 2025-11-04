@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include <Servo.h>
 #include <NewPing.h>
 #include <SPI.h>
@@ -14,13 +13,13 @@
 #define OPEN 1
 #define CLOSED 0
 #define delayTime 10
-//These are the Pins used for the SPI transfer
-//See the usage instructions for their meaning
+//These are the Pins used for the SPI transfer//See the usage instructions for their meaning
 #define DIN A0
 #define CS A1
 #define CLK A2
 //The total numer of Segments
 #define Segments 4
+#define OpenDistance 20
 //This creates an uninitilized LedController object.
 //It will be initilized in the setup function.
 LedController<Segments,1> lc = LedController<Segments,1>();
@@ -53,6 +52,48 @@ int face = -1; //-1=unknown, 0=closed, 1=open
 void echoCheck(); // Forward declaration of the echoCheck function.
 unsigned long rocketTimer = 0; // Timer for rocket display after door close
 unsigned long doorOpenTime = 0;
+void displayRocket(){
+  // Non-blocking version of the rocket animation using millis()
+  static unsigned long lastMillis = 0;
+  static int dir = 0;                     // 0 = right, 1 = left
+  static int idx = 0;                     // column index (0 .. cols-1)
+  static int phase = 0;                   // 0 = horizontal move, 1 = vertical move, 2 = advance index
+  const int cols = 8 * (Segments + 1);
+  unsigned long now = millis();
+
+  if (now - lastMillis < (unsigned long)delayTime) return;
+  lastMillis = now;
+
+  // clear matrix at the start of each direction cycle
+  if (idx == 0 && phase == 0) {
+    lc.clearMatrix();
+  }
+
+  // perform one sub-step per call (matches original pattern of multiple delays per column)
+  if (phase == 0) {
+    // horizontal move: feed next column (or blank if rocket already fully inside)
+    auto in = (idx < 8) ? rocketColumns[idx] : 0x00;
+    if (dir == 0) lc.moveRight(in); else lc.moveLeft(in);
+    phase = 1;
+  }
+  else if (phase == 1) {
+    // vertical wiggle for columns after the first 8
+    if (idx > 7) {
+      if (idx % 6 < 3) lc.moveDown(); else lc.moveUp();
+    }
+    phase = 2;
+  }
+  else {
+    // advance to next column; handle end of cycle and toggle direction
+    idx++;
+    phase = 0;
+    if (idx >= cols) {
+      idx = 0;
+      dir = (dir + 1) % 2;
+      // leave matrix cleared for the next cycle (handled at top)
+    }
+  }
+}
 void printByte(byte character []){  
   int i = 0;  
   for(i=0;i<8;i++){  
@@ -97,56 +138,13 @@ void setup(){
 // (loop() already only calls displayRocket() when the door is open)
 // Override the previous delayTime so the animation is driven every 10 ms.
 
-void displayRocket(){
-  // Non-blocking version of the rocket animation using millis()
-  static unsigned long lastMillis = 0;
-  static int dir = 0;                     // 0 = right, 1 = left
-  static int idx = 0;                     // column index (0 .. cols-1)
-  static int phase = 0;                   // 0 = horizontal move, 1 = vertical move, 2 = advance index
-  const int cols = 8 * (Segments + 1);
-  unsigned long now = millis();
-
-  if (now - lastMillis < (unsigned long)delayTime) return;
-  lastMillis = now;
-
-  // clear matrix at the start of each direction cycle
-  if (idx == 0 && phase == 0) {
-    lc.clearMatrix();
-  }
-
-  // perform one sub-step per call (matches original pattern of multiple delays per column)
-  if (phase == 0) {
-    // horizontal move: feed next column (or blank if rocket already fully inside)
-    auto in = (idx < 8) ? rocketColumns[idx] : 0x00;
-    if (dir == 0) lc.moveRight(in); else lc.moveLeft(in);
-    phase = 1;
-  }
-  else if (phase == 1) {
-    // vertical wiggle for columns after the first 8
-    if (idx > 7) {
-      if (idx % 6 < 3) lc.moveDown(); else lc.moveUp();
-    }
-    phase = 2;
-  }
-  else {
-    // advance to next column; handle end of cycle and toggle direction
-    idx++;
-    phase = 0;
-    if (idx >= cols) {
-      idx = 0;
-      dir = (dir + 1) % 2;
-      // leave matrix cleared for the next cycle (handled at top)
-    }
-  }
-}
 void loop() {
- 
   byte uid = checkCard();
   if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
     pingTimer += pingSpeed;      // Set the next ping time.
     sonar.ping_timer(echoCheck); // Send out the ping, calls "echoCheck" function every 24uS where you can check the ping status.
   }
-  if ((distance < 20)  || uid == 0x5D){ //if distance less than 20cm or card uid is 0x5D open the door
+  if ((distance < OpenDistance)  || uid == 0x5D){ //if distance less than 20cm or card uid is 0x5D open the door
    // myservo.write(180); //this only to test servo working
     state = OPEN;
     if (face != OPEN){
@@ -155,7 +153,7 @@ void loop() {
           face=OPEN;
     }
   }
-  else if (distance >=20 ){
+  else if (distance >=OpenDistance ){
     ///myservo.write(0); //only test servo working
     state = CLOSED;
     Serial.println("Door Closed");
@@ -170,13 +168,13 @@ void loop() {
   } else if (state == CLOSED) {
     if (millis() - doorOpenTime >= 2000) { // Check if 2 seconds have passed since the door was opened
       myservo.write(0); // Close the door
-      if (face != CLOSED){
+        if (face != CLOSED){
           lc.clearMatrix(); //clear the matrix before showing closed face
           printByte(closedface);
           face=CLOSED;
-      }
+        }
+     }
   }
-}
   // Rocket handling is done below: after the door has been closed for 5s displayRocket() will run repeatedly
   // (displayRocket() is non-blocking so it will keep animating until the door opens again)
   if (state == CLOSED) {
