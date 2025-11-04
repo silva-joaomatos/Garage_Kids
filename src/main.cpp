@@ -13,23 +13,20 @@
 #define US_ROUNDTRIP_CM 57 // Constant for converting ping time to centimeters.
 #define OPEN 1
 #define CLOSED 0
-
-
-
+#define delayTime 10
 //These are the Pins used for the SPI transfer
 //See the usage instructions for their meaning
 #define DIN A0
 #define CS A1
 #define CLK A2
-
 //The total numer of Segments
 #define Segments 4
-
-//The delay between movements
-#define delayTime 200
 //This creates an uninitilized LedController object.
 //It will be initilized in the setup function.
 LedController<Segments,1> lc = LedController<Segments,1>();
+
+byte openface[8]= {0x00, 0xc7, 0xc1, 0x11, 0x11, 0xc1, 0xc7, 0x00};//Data 
+byte closedface[8]= {0x00, 0xc3, 0xc2, 0x12, 0x12, 0xc2, 0xc3, 0x00};//Data
 
 //This is my pixelart of a rocket which will be used in this example
 ByteBlock rocket= ByteBlock::reverse({
@@ -43,29 +40,26 @@ ByteBlock rocket= ByteBlock::reverse({
   B00000000
 });
 ByteBlock rocketColumns;
-
-
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 unsigned int pingSpeed = 50; // How frequently are we going to send out a ping (in milliseconds). 50ms would be 20 times a second.
 unsigned long pingTimer;     // Holds the next ping time.
 Servo myservo;  // create Servo object to control a servo
 MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
-
 int pos = 0;    // variable to store the servo position
 int distance = 0; // variable to store the ping distance
 int state = 0;
 bool cardpresent = false;
 int face = -1; //-1=unknown, 0=closed, 1=open
 void echoCheck(); // Forward declaration of the echoCheck function.
-void printByte(byte character [])  
-{  
+unsigned long rocketTimer = 0; // Timer for rocket display after door close
+unsigned long doorOpenTime = 0;
+void printByte(byte character []){  
   int i = 0;  
-  for(i=0;i<8;i++)  
-  {  
+  for(i=0;i<8;i++){  
     lc.setRow(0,7-i,character[i]);  	
   }  
 }  
-byte checkCard() {
+byte checkCard(){
   // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
   if ( ! mfrc522.PICC_IsNewCardPresent()) {
     return 0x00;
@@ -80,9 +74,8 @@ byte checkCard() {
  // Serial.println(mfrc522.uid.uidByte[0],HEX);
   cardpresent = true;
   return mfrc522.uid.uidByte[0];
- 
 } 
-void setup() {
+void setup(){
  Serial.begin(115200);		// Initialize serial communications with the PC
 	while (!Serial);		// Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
 	SPI.begin();			// Init SPI bus
@@ -103,11 +96,6 @@ void setup() {
 // Run displayRocket as a 10ms task and ensure it's only shown while the door is open.
 // (loop() already only calls displayRocket() when the door is open)
 // Override the previous delayTime so the animation is driven every 10 ms.
-#undef delayTime
-#define delayTime 10
-byte openface[8]= {0x00, 0xc7, 0xc1, 0x11, 0x11, 0xc1, 0xc7, 0x00};//Data 
-byte closedface[8]= {0x00, 0xc3, 0xc2, 0x12, 0x12, 0xc2, 0xc3, 0x00};//Data
-
 
 void displayRocket(){
   // Non-blocking version of the rocket animation using millis()
@@ -175,7 +163,7 @@ void loop() {
   // If state == OPEN, keep the door open for 5 seconds without delay function. if distance < 20cm keep open, only close 5seconds after distance is >=20cm
  // Use millis() to track time, not delay(). 
 //update below code so that door only closes 5 seconds after distance is >=20cm
-  static unsigned long doorOpenTime = 0;
+  
   if (state == OPEN) {  
     myservo.write(180); // Open the door
     doorOpenTime = millis(); // Reset the door open timer
@@ -189,8 +177,8 @@ void loop() {
       }
   }
 }
-  // if the door is closed for more than 5 seconds display rocket animation
-  static unsigned long rocketTimer = 0;
+  // Rocket handling is done below: after the door has been closed for 5s displayRocket() will run repeatedly
+  // (displayRocket() is non-blocking so it will keep animating until the door opens again)
   if (state == CLOSED) {
     if (rocketTimer == 0) {
       rocketTimer = millis(); // start close timer
