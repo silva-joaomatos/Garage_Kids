@@ -88,15 +88,11 @@ void setup() {
 	SPI.begin();			// Init SPI bus
 	mfrc522.PCD_Init();		// Init MFRC522
 	delay(4);				// Optional delay. Some board do need more time after init to be ready, see Readme
-//	mfrc522.PCD_DumpVersionToSerial();	// Show details of PCD - MFRC522 Card Reader details
+  //mfrc522.PCD_DumpVersionToSerial();	// Show details of PCD - MFRC522 Card Reader details
 	//Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
-
   myservo.attach(9);  // attaches the servo on pin 9 to the Servo object
   myservo.write(0); //initially close the door
   pingTimer = millis(); // Start now.
-  //Serial.begin(115200); // Open serial monitor at 115200 baud to see ping results.
-  //Serial.println("NewPing Ultrasonic Servo Sweep Example");
-  //initilizes the LedController without hardware spi.
   lc.init(DIN,CLK,CS);
 
   //make a array of columns out of the rocket
