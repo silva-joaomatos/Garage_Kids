@@ -197,3 +197,7 @@ void echoCheck() { // Timer2 interrupt calls this function every 24uS where you 
     Serial.println(distance);
   }
 }
+
+//this is only a comment to make sure the code is not empty after the last function. you can delete this comment if you want to.
+//feature breanch to test Pull request from github desktop and VSCODE. This comment should not be in the final code.
+// End of code
