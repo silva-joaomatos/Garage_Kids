@@ -16,3 +16,5 @@ The LED Matrix provides visual information:
 * Matrix displays sad face when door is CLOSED (displays for 5 seconds)
 * Matrix displays rocket animation every 5 seconds when door is idle
     > *Note: Rocket animation adapted from library example, modified to avoid delay() function*
+
+### ToDO
